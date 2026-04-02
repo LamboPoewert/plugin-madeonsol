@@ -5,17 +5,18 @@
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
+  "files": ["dist", "README.md"],
   "scripts": {
     "build": "tsc",
-    "dev": "tsc --watch"
+    "prepublishOnly": ""
   },
   "peerDependencies": {
     "@elizaos/core": ">=1.0.0",
-    "@x402/fetch": ">=0.1.0",
-    "@x402/core": ">=0.1.0",
-    "@x402/svm": ">=0.1.0",
+    "@scure/base": ">=1.0.0",
     "@solana/kit": ">=2.0.0",
-    "@scure/base": ">=1.0.0"
+    "@x402/core": ">=0.1.0",
+    "@x402/fetch": ">=0.1.0",
+    "@x402/svm": ">=0.1.0"
   },
   "agentConfig": {
     "pluginType": "elizaos:plugin:1.0.0",
@@ -34,6 +35,16 @@
       }
     }
   },
-  "keywords": ["elizaos", "plugin", "solana", "kol", "x402", "madeonsol"],
-  "license": "MIT"
+  "keywords": [
+    "elizaos",
+    "plugin",
+    "solana",
+    "kol",
+    "x402",
+    "madeonsol"
+  ],
+  "license": "MIT",
+  "devDependencies": {
+    "@elizaos/core": "^2.0.0-alpha.77"
+  }
 }
