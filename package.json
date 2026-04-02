@@ -1,0 +1,39 @@
+{
+  "name": "@madeonsol/plugin-madeonsol",
+  "version": "0.1.0",
+  "description": "ElizaOS plugin for MadeOnSol — Solana KOL intelligence and deployer analytics via x402 micropayments",
+  "type": "module",
+  "main": "dist/index.js",
+  "types": "dist/index.d.ts",
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch"
+  },
+  "peerDependencies": {
+    "@elizaos/core": ">=1.0.0",
+    "@x402/fetch": ">=0.1.0",
+    "@x402/core": ">=0.1.0",
+    "@x402/svm": ">=0.1.0",
+    "@solana/kit": ">=2.0.0",
+    "@scure/base": ">=1.0.0"
+  },
+  "agentConfig": {
+    "pluginType": "elizaos:plugin:1.0.0",
+    "pluginParameters": {
+      "MADEONSOL_API_URL": {
+        "type": "string",
+        "description": "MadeOnSol API base URL",
+        "required": false,
+        "default": "https://madeonsol.com"
+      },
+      "SVM_PRIVATE_KEY": {
+        "type": "string",
+        "description": "Solana private key (base58) for automatic x402 USDC payments",
+        "required": true,
+        "sensitive": true
+      }
+    }
+  },
+  "keywords": ["elizaos", "plugin", "solana", "kol", "x402", "madeonsol"],
+  "license": "MIT"
+}
