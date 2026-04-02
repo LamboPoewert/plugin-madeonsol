@@ -62,6 +62,15 @@ GET https://madeonsol.com/api/x402
 
 Returns all available endpoints, prices, and parameter docs. No payment required.
 
+## Also Available
+
+| Platform | Package |
+|---|---|
+| TypeScript SDK | [`madeonsol-x402`](https://www.npmjs.com/package/madeonsol-x402) |
+| Python (LangChain, CrewAI) | [`madeonsol-x402`](https://github.com/LamboPoewert/madeonsol-python) on PyPI |
+| MCP Server (Claude, Cursor) | [`mcp-server-madeonsol`](https://www.npmjs.com/package/mcp-server-madeonsol) |
+| Solana Agent Kit | [`solana-agent-kit-plugin-madeonsol`](https://www.npmjs.com/package/solana-agent-kit-plugin-madeonsol) |
+
 ## License
 
 MIT
