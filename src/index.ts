@@ -52,6 +52,14 @@ export const madeOnSolPlugin: Plugin = {
     }
 
     const madeOnSolClient = new MadeOnSolClient({ baseUrl, fetchFn });
+
+    // Enable webhook/streaming features if RAPIDAPI_KEY is provided
+    const rapidApiKey = runtime.getSetting?.("RAPIDAPI_KEY") as string | undefined;
+    if (rapidApiKey) {
+      madeOnSolClient.setRapidApiKey(rapidApiKey);
+      console.log("[madeonsol] Webhook & streaming features enabled (RAPIDAPI_KEY set)");
+    }
+
     (runtime as unknown as Record<string, unknown>)[MADEONSOL_CLIENT_KEY] = madeOnSolClient;
   },
 };

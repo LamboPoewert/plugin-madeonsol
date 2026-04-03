@@ -63,4 +63,52 @@ export class MadeOnSolClient {
   getDeployerAlerts(params?: { since?: string; limit?: string; offset?: string }) {
     return this.query("/api/x402/deployer-hunter/alerts", params);
   }
+
+  // ── Webhook management (requires RAPIDAPI_KEY) ──
+
+  private rapidApiKey?: string;
+
+  setRapidApiKey(key: string) {
+    this.rapidApiKey = key;
+  }
+
+  private async restRequest<T = unknown>(method: string, path: string, body?: unknown): Promise<{ data?: T; error?: string; status: number }> {
+    if (!this.rapidApiKey) {
+      return { error: "RAPIDAPI_KEY required for webhook/streaming features", status: 401 };
+    }
+    const res = await this.fetchFn(`${this.baseUrl}/api/v1${path}`, {
+      method,
+      headers: {
+        "Content-Type": "application/json",
+        "x-rapidapi-key": this.rapidApiKey,
+        "x-rapidapi-host": "madeonsol-solana-kol-tracker-tools-api.p.rapidapi.com",
+      },
+      ...(body ? { body: JSON.stringify(body) } : {}),
+    });
+    if (!res.ok) {
+      const text = await res.text().catch(() => "Unknown error");
+      return { error: text, status: res.status };
+    }
+    return { data: await res.json() as T, status: res.status };
+  }
+
+  createWebhook(params: { url: string; events: string[]; filters?: Record<string, unknown> }) {
+    return this.restRequest("POST", "/webhooks", params);
+  }
+
+  listWebhooks() {
+    return this.restRequest("GET", "/webhooks");
+  }
+
+  deleteWebhook(id: number) {
+    return this.restRequest("DELETE", `/webhooks/${id}`);
+  }
+
+  testWebhook(webhookId: number) {
+    return this.restRequest("POST", "/webhooks/test", { webhook_id: webhookId });
+  }
+
+  getStreamToken() {
+    return this.restRequest("POST", "/stream/token");
+  }
 }
