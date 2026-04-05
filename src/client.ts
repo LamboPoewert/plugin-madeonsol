@@ -1,38 +1,61 @@
 /**
- * MadeOnSol x402 API client.
- * Uses @x402/fetch to automatically handle 402 → sign USDC → retry flow.
+ * MadeOnSol API client.
+ * Supports 3 auth modes: API key (simplest), RapidAPI key, or x402 micropayments.
  */
 
 const DEFAULT_BASE = "https://madeonsol.com";
+const RAPIDAPI_HOST = "madeonsol-solana-kol-tracker-tools-api.p.rapidapi.com";
+
+type AuthMode = "madeonsol" | "rapidapi" | "x402" | "none";
 
 export interface MadeOnSolClientOptions {
   baseUrl?: string;
-  /**
-   * A fetch function that handles x402 payments automatically.
-   * Created via wrapFetchWithPayment() from @x402/fetch.
-   * If not provided, uses plain fetch (requests will return 402).
-   */
+  /** MadeOnSol API key (get one free at madeonsol.com/developer). Preferred. */
+  apiKey?: string;
+  /** RapidAPI subscription key. */
+  rapidApiKey?: string;
+  /** x402 payment-enabled fetch (for AI agents with SVM_PRIVATE_KEY). */
   fetchFn?: typeof fetch;
 }
 
 export class MadeOnSolClient {
   private baseUrl: string;
   private fetchFn: typeof fetch;
+  private authMode: AuthMode;
+  private authHeaders: Record<string, string>;
 
   constructor(options: MadeOnSolClientOptions = {}) {
     this.baseUrl = options.baseUrl || DEFAULT_BASE;
     this.fetchFn = options.fetchFn || globalThis.fetch;
+    this.authHeaders = {};
+
+    if (options.apiKey) {
+      this.authMode = "madeonsol";
+      this.authHeaders = { Authorization: `Bearer ${options.apiKey}` };
+    } else if (options.rapidApiKey) {
+      this.authMode = "rapidapi";
+      this.authHeaders = { "x-rapidapi-key": options.rapidApiKey, "x-rapidapi-host": RAPIDAPI_HOST };
+    } else if (options.fetchFn) {
+      this.authMode = "x402";
+    } else {
+      this.authMode = "none";
+    }
   }
 
   async query<T = unknown>(path: string, params?: Record<string, string | undefined>): Promise<{ data?: T; error?: string; status: number }> {
-    const url = new URL(path, this.baseUrl);
+    const apiPath = this.authMode === "x402" || this.authMode === "none"
+      ? path
+      : path.replace("/api/x402/", "/api/v1/");
+    const url = new URL(apiPath, this.baseUrl);
     if (params) {
       for (const [k, v] of Object.entries(params)) {
         if (v !== undefined) url.searchParams.set(k, v);
       }
     }
 
-    const res = await this.fetchFn(url.toString(), { method: "GET" });
+    const res = this.authMode === "x402"
+      ? await this.fetchFn(url.toString(), { method: "GET" })
+      : await this.fetchFn(url.toString(), { method: "GET", headers: this.authHeaders });
 
     if (res.status === 402) {
       const body = await res.json();
@@ -64,24 +87,17 @@ export class MadeOnSolClient {
     return this.query("/api/x402/deployer-hunter/alerts", params);
   }
 
-  // ── Webhook management (requires RAPIDAPI_KEY) ──
-
-  private rapidApiKey?: string;
-
-  setRapidApiKey(key: string) {
-    this.rapidApiKey = key;
-  }
+  // ── Webhook management (requires API key or RapidAPI key with Pro/Ultra) ──
 
   private async restRequest<T = unknown>(method: string, path: string, body?: unknown): Promise<{ data?: T; error?: string; status: number }> {
-    if (!this.rapidApiKey) {
-      return { error: "RAPIDAPI_KEY required for webhook/streaming features", status: 401 };
+    if (this.authMode !== "madeonsol" && this.authMode !== "rapidapi") {
+      return { error: "API key or RapidAPI key required for webhook/streaming features. Get a free key at madeonsol.com/developer", status: 401 };
     }
     const res = await this.fetchFn(`${this.baseUrl}/api/v1${path}`, {
       method,
       headers: {
         "Content-Type": "application/json",
-        "x-rapidapi-key": this.rapidApiKey,
-        "x-rapidapi-host": "madeonsol-solana-kol-tracker-tools-api.p.rapidapi.com",
+        ...this.authHeaders,
       },
       ...(body ? { body: JSON.stringify(body) } : {}),
     });

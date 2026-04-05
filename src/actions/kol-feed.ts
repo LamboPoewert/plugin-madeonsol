@@ -39,7 +39,7 @@ export const kolFeedAction: Action = {
 
     if (result.error) {
       callback?.({ text: result.status === 402
-        ? "x402 payment required but no wallet configured. Set SVM_PRIVATE_KEY to enable automatic USDC payments."
+        ? "Authentication required. Set MADEONSOL_API_KEY (free at madeonsol.com/developer), RAPIDAPI_KEY, or SVM_PRIVATE_KEY."
         : `Error: ${result.error}` });
       return undefined;
     }
