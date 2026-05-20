@@ -3,6 +3,13 @@ import { kolFeedAction } from "./actions/kol-feed.js";
 import { kolCoordinationAction } from "./actions/kol-coordination.js";
 import { kolLeaderboardAction } from "./actions/kol-leaderboard.js";
 import { deployerAlertsAction } from "./actions/deployer-alerts.js";
+import { walletTrackerWatchlistAction, walletTrackerTradesAction } from "./actions/wallet-tracker.js";
+import { kolTokenEntryOrderAction } from "./actions/kol-token-entry-order.js";
+import { kolCompareAction } from "./actions/kol-compare.js";
+import { kolAlertsRecentAction } from "./actions/kol-alerts-recent.js";
+import { meAction } from "./actions/me.js";
+import { tokensListAction } from "./actions/tokens-list.js";
+import { walletStatsAction, walletPnlAction, walletPositionsAction, walletTradesAction } from "./actions/wallet.js";
 import { MadeOnSolClient } from "./client.js";
 
 /** Key used to store the initialized client on the runtime */
@@ -11,31 +18,42 @@ export const MADEONSOL_CLIENT_KEY = "madeonsol:client";
 export const madeOnSolPlugin: Plugin = {
   name: "madeonsol",
   description:
-    "Query Solana KOL trading intelligence and deployer analytics from MadeOnSol. Tracks 946 KOL wallets and 4000+ Pump.fun deployers.",
+    "Query Solana KOL trading intelligence and deployer analytics from MadeOnSol. Tracks 1,000+ KOL wallets and 6,700+ Pump.fun deployers.",
   actions: [
     kolFeedAction,
     kolCoordinationAction,
     kolLeaderboardAction,
     deployerAlertsAction,
+    walletTrackerWatchlistAction,
+    walletTrackerTradesAction,
+    kolTokenEntryOrderAction,
+    kolCompareAction,
+    kolAlertsRecentAction,
+    meAction,
+    tokensListAction,
+    walletStatsAction,
+    walletPnlAction,
+    walletPositionsAction,
+    walletTradesAction,
   ],
 
   /**
    * Initialize the MadeOnSol client.
-   * Auth priority: MADEONSOL_API_KEY > RAPIDAPI_KEY > SVM_PRIVATE_KEY (x402).
-   * Get a free API key at madeonsol.com/developer — no wallet needed.
+   * Auth priority: MADEONSOL_API_KEY > SVM_PRIVATE_KEY (x402).
+   * Get a free `msk_` API key at madeonsol.com/pricing — no wallet needed.
+   *
+   * v1.0 breaking change: RAPIDAPI_KEY support has been removed
+   * (MadeOnSol RapidAPI marketplace was retired 2026-04-19).
    */
   init: async (_config: Record<string, string>, runtime: IAgentRuntime) => {
     const baseUrl = String(runtime.getSetting?.("MADEONSOL_API_URL") || "https://madeonsol.com");
     const apiKey = runtime.getSetting?.("MADEONSOL_API_KEY") as string | undefined;
-    const rapidApiKey = runtime.getSetting?.("RAPIDAPI_KEY") as string | undefined;
     const privateKey = runtime.getSetting?.("SVM_PRIVATE_KEY") as string | undefined;
 
     let fetchFn: typeof fetch | undefined;
 
     if (apiKey) {
       console.log("[madeonsol] Using MadeOnSol API key (Bearer auth)");
-    } else if (rapidApiKey) {
-      console.log("[madeonsol] Using RapidAPI key");
     } else if (privateKey) {
       try {
         const { wrapFetchWithPayment } = await import("@x402/fetch");
@@ -54,10 +72,14 @@ export const madeOnSolPlugin: Plugin = {
         console.warn("[madeonsol] x402 payment setup failed:", err);
       }
     } else {
-      console.log("[madeonsol] No auth configured. Set MADEONSOL_API_KEY (free at madeonsol.com/developer), RAPIDAPI_KEY, or SVM_PRIVATE_KEY.");
+      console.warn(
+        "[madeonsol] No auth configured — every API call will fail.\n" +
+        "  → Get a free MADEONSOL_API_KEY (200 req/day, no card) at https://madeonsol.com/pricing\n" +
+        "  → Or set SVM_PRIVATE_KEY for x402 micropayments.",
+      );
     }
 
-    const madeOnSolClient = new MadeOnSolClient({ baseUrl, apiKey, rapidApiKey, fetchFn });
+    const madeOnSolClient = new MadeOnSolClient({ baseUrl, apiKey, fetchFn });
     (runtime as unknown as Record<string, unknown>)[MADEONSOL_CLIENT_KEY] = madeOnSolClient;
   },
 };
@@ -65,3 +87,7 @@ export const madeOnSolPlugin: Plugin = {
 export default madeOnSolPlugin;
 export { MadeOnSolClient } from "./client.js";
 export { kolFeedAction, kolCoordinationAction, kolLeaderboardAction, deployerAlertsAction };
+export { walletTrackerWatchlistAction, walletTrackerTradesAction };
+export { kolTokenEntryOrderAction, kolCompareAction, kolAlertsRecentAction };
+export { meAction, tokensListAction };
+export { walletStatsAction, walletPnlAction, walletPositionsAction, walletTradesAction };

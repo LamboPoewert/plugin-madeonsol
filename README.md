@@ -1,6 +1,29 @@
 # @madeonsol/plugin-madeonsol
 
-ElizaOS plugin for [MadeOnSol](https://madeonsol.com) — Solana KOL trading intelligence and deployer analytics.
+[![npm version](https://img.shields.io/npm/v/@madeonsol/plugin-madeonsol?style=flat-square)](https://www.npmjs.com/package/@madeonsol/plugin-madeonsol)
+[![npm downloads](https://img.shields.io/npm/dm/@madeonsol/plugin-madeonsol?style=flat-square)](https://www.npmjs.com/package/@madeonsol/plugin-madeonsol)
+[![ElizaOS](https://img.shields.io/badge/ElizaOS-plugin-blueviolet?style=flat-square)](https://elizaos.github.io/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-blue?style=flat-square)](LICENSE)
+
+> 📚 **[API docs](https://madeonsol.com/api-docs)** · 💰 **[Free API key](https://madeonsol.com/pricing)** · 🤖 **[ElizaOS](https://github.com/elizaOS/eliza)**
+
+ElizaOS plugin for [MadeOnSol](https://madeonsol.com) — Solana KOL trading intelligence, deployer analytics, and wallet tracking.
+
+> Real-time Solana trading intelligence: track 1,000+ KOL wallets with <3s latency, score 6,700+ Pump.fun deployers by reputation, detect multi-KOL coordination signals, monitor any Solana wallet for swaps and transfers, and stream every DEX trade. Free tier: 200 requests/day at [madeonsol.com/pricing](https://madeonsol.com/pricing) — no credit card required.
+
+> **New in 1.7.0** *(2026-05-12)* — **Account introspection + token scanner actions.** Two new actions: `meAction` (`GET_MADEONSOL_ACCOUNT`) reports the caller's tier, daily/burst quota, and webhook / copy-trade / coord-rule slot counts; `tokensListAction` (`LIST_MADEONSOL_TOKENS`) scans the Solana token universe by MC, liquidity, 1h momentum, and primary DEX. New client methods: `client.getMe()` and `client.getTokensList(params)`. Token responses now expose **velocity / MEV-share enrichment** fields. The `/tokens` scanner applies a default `min_liq=2000` so the agent isn't drowned in dust pools by default. `/token/{mint}` HTTP 400s now return structured `code` / `reason` / `example` / `docs` so the agent can self-correct bad mints. Deprecated `avg_entry_mc_usd` has been removed from all leaderboard payloads.
+
+## Quick start (10 seconds)
+
+```bash
+npm install @madeonsol/plugin-madeonsol
+```
+
+```ts
+import { madeOnSolPlugin } from "@madeonsol/plugin-madeonsol";
+const agent = { plugins: [madeOnSolPlugin], settings: { MADEONSOL_API_KEY: "msk_..." } }; // free tier at https://madeonsol.com/pricing
+// Then ask the agent: "What are KOLs buying right now?"
+```
 
 ## Authentication
 
@@ -8,20 +31,27 @@ Three options (in priority order):
 
 | Method | Setting | Best for |
 |---|---|---|
-| **MadeOnSol API key** (recommended) | `MADEONSOL_API_KEY` | Developers — [get a free key](https://madeonsol.com/developer) |
-| RapidAPI key | `RAPIDAPI_KEY` | RapidAPI subscribers |
+| **MadeOnSol API key** (recommended) | `MADEONSOL_API_KEY` | Developers — [get a free key](https://madeonsol.com/pricing) |
 | x402 micropayments | `SVM_PRIVATE_KEY` | AI agents with Solana wallets |
 
 ## What it does
 
 Gives your ElizaOS agent access to MadeOnSol's Solana intelligence API.
 
-| Action | Endpoint |
-|--------|----------|
-| `GET_KOL_FEED` | Real-time KOL trade feed (946 wallets) |
-| `GET_KOL_COORDINATION` | Multi-KOL convergence signals |
-| `GET_KOL_LEADERBOARD` | KOL PnL/win-rate rankings |
-| `GET_DEPLOYER_ALERTS` | Pump.fun elite deployer alerts |
+| Action | Description |
+|--------|-------------|
+| `GET_KOL_FEED` | Real-time KOL trade feed (1,000+ wallets) |
+| `GET_KOL_COORDINATION` | Multi-KOL convergence (v1.1 — peak-density, exits, 0-100 score) |
+| `GET_KOL_LEADERBOARD` | KOL PnL/win-rate rankings (180 days of history) |
+| `GET_DEPLOYER_ALERTS` | Pump.fun deployer alerts with KOL enrichment |
+| `WALLET_TRACKER_WATCHLIST` | List your tracked wallets and remaining capacity |
+| `WALLET_TRACKER_TRADES` | Recent swaps and transfers from your watchlist |
+| `GET_MADEONSOL_ACCOUNT` | Your tier, daily quota, burst limit, and slot usage *(new in 1.7.0)* |
+| `LIST_MADEONSOL_TOKENS` | Scan tokens by MC, liquidity, 1h momentum, primary DEX *(new in 1.7.0)* |
+| `WALLET_STATS` | **New 1.8** · Stats + cross-product flags (is_kol, is_alpha_tracked + bot_confidence, is_deployer) for any wallet (PRO+) |
+| `WALLET_PNL` | **New 1.8** · Full FIFO PnL — realized + unrealized, profit factor, drawdown, hold times, top winners (PRO+) |
+| `WALLET_POSITIONS` | **New 1.8** · Open positions with live unrealized SOL from market-cap tracker (PRO+) |
+| `WALLET_TRADES` | **New 1.8** · Recent trades for any wallet, filtered by action (PRO+) |
 
 ## Install
 
@@ -39,39 +69,92 @@ import { madeOnSolPlugin } from "@madeonsol/plugin-madeonsol";
 const agent = {
   plugins: [madeOnSolPlugin],
   settings: {
-    // Option 1: API key (simplest — get one free at madeonsol.com/developer)
+    // Option 1: API key — get one free at madeonsol.com/pricing
     MADEONSOL_API_KEY: "msk_your_api_key_here",
 
-    // Option 2: RapidAPI key
-    // RAPIDAPI_KEY: "your_rapidapi_key",
-
-    // Option 3: x402 micropayments (AI agents)
+    // Option 2: x402 micropayments (AI agents)
     // SVM_PRIVATE_KEY: "your_base58_solana_private_key",
   },
 };
 ```
+
+### v1.1 Coordination alerts (programmatic)
+
+The `GET_KOL_COORDINATION` action surfaces the v1.1 `coordination_score`, `peak_kols`, and `exited_count` fields. For **push alerts** (fires within ~1s of a qualifying trade via WS `kol:coordination` channel + HMAC-signed webhook), use the client directly from a custom action:
+
+```ts
+import { MadeOnSolClient } from "@madeonsol/plugin-madeonsol";
+
+const client = new MadeOnSolClient({ apiKey: process.env.MADEONSOL_API_KEY });
+const res = await client.coordinationAlertsCreate({
+  name: "fresh pump cluster",
+  min_kols: 4,
+  window_minutes: 15,
+  min_score: 70,
+  include_majors: false,
+  cooldown_min: 60,
+  score_jump_break: 10,
+  delivery_mode: "both",
+  webhook_url: "https://you.com/hooks/coord",
+});
+// store res.data.webhook_secret — shown ONCE
+```
+
+PRO=5 rules, ULTRA=20. Also available: `coordinationAlertsList()`, `coordinationAlertsGet(id)`, `coordinationAlertsUpdate(id, updates)`, `coordinationAlertsDelete(id)`.
+
+### First-touch signal *(new in 1.3)*
+
+Every "first KOL buy on a token mint" event — when a tracked KOL is the first of the cohort to touch a token. Filterable by **scout tier** (S/A/B/C from `mv_kol_scout_score`), KOL winrate, token age, mint suffix.
+
+**Backtest:** S-tier scouts attract ≥3 follow-on KOLs within 4h ~50% of the time vs ~14% baseline (38d / 491k buys).
+
+```ts
+import { MadeOnSolClient } from "@madeonsol/plugin-madeonsol";
+const client = new MadeOnSolClient({ apiKey: process.env.MADEONSOL_API_KEY });
+
+// REST query
+const { events } = await client.firstTouches({ preset: "scout", min_scout_tier: "S", limit: 20 });
+
+// Webhook subscription (Ultra) — push delivery, HMAC-signed
+const { subscription, webhook_secret } = await client.firstTouchSubscriptionsCreate({
+  name: "S-tier scouts on pump tokens",
+  filters: { min_scout_tier: "S", mint_suffix: "pump" },
+  delivery_mode: "webhook",
+  webhook_url: "https://you.com/hooks/scout",
+});
+// store webhook_secret — shown ONCE
+```
+
+ULTRA only for subscriptions — up to 10 active. CRUD: `firstTouchSubscriptionsList()`, `firstTouchSubscriptionsGet(id)`, `firstTouchSubscriptionsUpdate(id, updates)`, `firstTouchSubscriptionsDelete(id)`.
+
+> **Don't poll — push.** Median lead time before the second KOL is 12 seconds. WebSocket channel: `kol:first_touches`.
 
 Your agent can then respond to queries like:
 - "What are KOLs buying right now?"
 - "Show me the KOL leaderboard this week"
 - "What tokens are multiple KOLs accumulating?"
 - "Any new deployer alerts from Pump.fun?"
+- "Show my wallet tracker watchlist"
+- "What did my tracked wallets trade recently?"
 
-## Discovery endpoint
+## Tiers
 
-```
-GET https://madeonsol.com/api/x402
-```
+| Tier | Price | Wallets tracked | Requests/day |
+|------|-------|-----------------|--------------|
+| Free | $0 | 10 | 200 |
+| Pro | $49/mo | 50 | 10,000 |
+| Ultra | $149/mo | 100 + WS events | 100,000 |
 
-Returns all available endpoints, prices, and parameter docs. No auth required.
+Free tier returns the full REST response shape on every endpoint — real wallets, TX signatures, full precision. Paid tiers unlock webhooks, WebSockets, rule engines, and ULTRA-only data depth. Get a key at [madeonsol.com/pricing](https://madeonsol.com/pricing).
 
 ## Also Available
 
 | Platform | Package |
 |---|---|
-| TypeScript SDK | [`madeonsol-x402`](https://www.npmjs.com/package/madeonsol-x402) |
-| Python (LangChain, CrewAI) | [`madeonsol-x402`](https://github.com/LamboPoewert/madeonsol-python) on PyPI |
-| MCP Server (Claude, Cursor) | [`mcp-server-madeonsol`](https://www.npmjs.com/package/mcp-server-madeonsol) |
+| TypeScript SDK | [`madeonsol`](https://www.npmjs.com/package/madeonsol) on npm |
+| Rust SDK | [`madeonsol`](https://crates.io/crates/madeonsol) on crates.io |
+| Python (LangChain, CrewAI) | [`madeonsol-x402`](https://pypi.org/project/madeonsol-x402/) on PyPI |
+| MCP Server (Claude, Cursor) | [`mcp-server-madeonsol`](https://www.npmjs.com/package/mcp-server-madeonsol) · [Smithery](https://smithery.ai/servers/madeonsol/solana-kol-intelligence) · [Glama](https://glama.ai/mcp/servers/LamboPoewert/mcp-server-madeonsol) |
 | Solana Agent Kit | [`solana-agent-kit-plugin-madeonsol`](https://www.npmjs.com/package/solana-agent-kit-plugin-madeonsol) |
 
 ## License

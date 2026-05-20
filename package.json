@@ -1,14 +1,20 @@
 {
   "name": "@madeonsol/plugin-madeonsol",
-  "version": "0.2.0",
+  "version": "1.8.0",
   "description": "ElizaOS plugin for MadeOnSol — Solana KOL intelligence and deployer analytics via x402 micropayments",
   "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
-  "files": ["dist", "README.md"],
+  "files": [
+    "dist",
+    "README.md",
+    "LICENSE"
+  ],
   "scripts": {
     "build": "tsc",
-    "prepublishOnly": ""
+    "dev": "tsc --watch",
+    "preflight": "bash ../../scripts/preflight-publish.sh",
+    "prepublishOnly": "npm run preflight && npm run build"
   },
   "peerDependencies": {
     "@elizaos/core": ">=1.0.0",
@@ -37,10 +43,23 @@
   },
   "keywords": [
     "elizaos",
+    "eliza",
     "plugin",
+    "elizaos-plugin",
+    "ai-agent",
     "solana",
     "kol",
+    "kol-tracker",
     "x402",
+    "memecoin",
+    "memecoin-tracker",
+    "pumpfun",
+    "deployer-hunter",
+    "alpha",
+    "alpha-bot",
+    "smart-money",
+    "copy-trading",
+    "trading",
     "madeonsol"
   ],
   "license": "MIT",
