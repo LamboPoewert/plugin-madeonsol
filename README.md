@@ -9,7 +9,7 @@
 
 ElizaOS plugin for [MadeOnSol](https://madeonsol.com) — Solana KOL trading intelligence, deployer analytics, and wallet tracking.
 
-> Real-time Solana trading intelligence: track 1,000+ KOL wallets with <3s latency, score 6,700+ Pump.fun deployers by reputation, detect multi-KOL coordination signals, monitor any Solana wallet for swaps and transfers, and stream every DEX trade. Free tier: 200 requests/day at [madeonsol.com/pricing](https://madeonsol.com/pricing) — no credit card required.
+> Real-time Solana trading intelligence: track 1,000+ KOL wallets with <3s latency, score 23,000+ Pump.fun deployers by reputation, detect multi-KOL coordination signals, monitor any Solana wallet for swaps and transfers, and stream every DEX trade. Free tier: 200 requests/day at [madeonsol.com/pricing](https://madeonsol.com/pricing) — no credit card required.
 
 > **New in 1.7.0** *(2026-05-12)* — **Account introspection + token scanner actions.** Two new actions: `meAction` (`GET_MADEONSOL_ACCOUNT`) reports the caller's tier, daily/burst quota, and webhook / copy-trade / coord-rule slot counts; `tokensListAction` (`LIST_MADEONSOL_TOKENS`) scans the Solana token universe by MC, liquidity, 1h momentum, and primary DEX. New client methods: `client.getMe()` and `client.getTokensList(params)`. Token responses now expose **velocity / MEV-share enrichment** fields. The `/tokens` scanner applies a default `min_liq=2000` so the agent isn't drowned in dust pools by default. `/token/{mint}` HTTP 400s now return structured `code` / `reason` / `example` / `docs` so the agent can self-correct bad mints. Deprecated `avg_entry_mc_usd` has been removed from all leaderboard payloads.
 
@@ -183,8 +183,9 @@ Your agent can then respond to queries like:
 | Tier | Price | Wallets tracked | Requests/day |
 |------|-------|-----------------|--------------|
 | Free | $0 | 10 | 200 |
-| Pro | $49/mo | 50 | 10,000 |
-| Ultra | $149/mo | 100 + WS events | 100,000 |
+| BASIC | $29/mo | 10 | 200 (all endpoints) |
+| Pro | $99/mo | 50 | 10,000 |
+| Ultra | $299/mo | 100 + WS events | 100,000 |
 
 Free tier returns the full REST response shape on every endpoint — real wallets, TX signatures, full precision. Paid tiers unlock webhooks, WebSockets, rule engines, and ULTRA-only data depth. Get a key at [madeonsol.com/pricing](https://madeonsol.com/pricing).
 
