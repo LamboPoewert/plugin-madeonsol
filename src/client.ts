@@ -41,7 +41,7 @@ export class MadeOnSolClient {
 
     if (options.apiKey) {
       this.authMode = "madeonsol";
-      this.authHeaders = { Authorization: `Bearer ${options.apiKey}` };
+      this.authHeaders = { Authorization: `Bearer ${options.apiKey}`, "User-Agent": "plugin-madeonsol/1.9.0" };
     } else if (options.fetchFn) {
       this.authMode = "x402";
     } else {

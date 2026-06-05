@@ -38,15 +38,28 @@ export const kolCoordinationAction: Action = {
 
     if (result.error) {
       callback?.({ text: result.status === 402
-        ? "Authentication required. Set MADEONSOL_API_KEY (free at madeonsol.com/developer), RAPIDAPI_KEY, or SVM_PRIVATE_KEY."
+        ? "Authentication required. Set MADEONSOL_API_KEY — free at https://madeonsol.com/pricing — or SVM_PRIVATE_KEY."
         : `Error: ${result.error}` });
       return undefined;
     }
 
-    const data = result.data as { coordination: Array<{ token_symbol: string; kol_count: number; signal: string; net_sol_flow: number }> };
-    const lines = (data.coordination || []).map(
-      (t) => `${t.token_symbol}: ${t.kol_count} KOLs ${t.signal} (${t.net_sol_flow > 0 ? "+" : ""}${t.net_sol_flow.toFixed(2)} SOL net)`
-    );
+    const data = result.data as {
+      coordination: Array<{
+        token_symbol: string;
+        kol_count: number;
+        signal: string;
+        net_sol_flow: number;
+        coordination_score?: number;
+        peak_kols?: number;
+        exited_count?: number;
+      }>;
+    };
+    const lines = (data.coordination || []).map((t) => {
+      const score = t.coordination_score != null ? ` · score ${t.coordination_score}/100` : "";
+      const peak = t.peak_kols != null ? ` · peak ${t.peak_kols}` : "";
+      const exited = t.exited_count ? ` · ${t.exited_count} exited` : "";
+      return `${t.token_symbol}: ${t.kol_count} KOLs ${t.signal} (${t.net_sol_flow > 0 ? "+" : ""}${t.net_sol_flow.toFixed(2)} SOL net)${score}${peak}${exited}`;
+    });
 
     callback?.({
       text: `KOL convergence signals (${period}):\n${lines.join("\n") || "No coordination signals found."}`,

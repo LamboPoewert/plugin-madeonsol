@@ -38,7 +38,7 @@ export const kolLeaderboardAction: Action = {
 
     if (result.error) {
       callback?.({ text: result.status === 402
-        ? "Authentication required. Set MADEONSOL_API_KEY (free at madeonsol.com/developer), RAPIDAPI_KEY, or SVM_PRIVATE_KEY."
+        ? "Authentication required. Set MADEONSOL_API_KEY — free at https://madeonsol.com/pricing — or SVM_PRIVATE_KEY."
         : `Error: ${result.error}` });
       return undefined;
     }
