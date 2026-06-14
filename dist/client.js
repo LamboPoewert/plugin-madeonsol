@@ -1,24 +1,59 @@
 /**
- * MadeOnSol x402 API client.
- * Uses @x402/fetch to automatically handle 402 → sign USDC → retry flow.
+ * MadeOnSol API client.
+ * Two auth modes: MadeOnSol API key (`msk_`, recommended) or x402 micropayments.
+ *
+ * v1.0 breaking change: RapidAPI auth has been removed (marketplace retired 2026-04-19).
+ * Get a free `msk_` key at https://madeonsol.com/pricing.
  */
 const DEFAULT_BASE = "https://madeonsol.com";
 export class MadeOnSolClient {
     baseUrl;
     fetchFn;
+    authMode;
+    authHeaders;
+    /** Most recent rate-limit headers, populated by every request. */
+    lastRateLimit = {};
     constructor(options = {}) {
         this.baseUrl = options.baseUrl || DEFAULT_BASE;
         this.fetchFn = options.fetchFn || globalThis.fetch;
+        this.authHeaders = {};
+        if (options.apiKey) {
+            this.authMode = "madeonsol";
+            this.authHeaders = { Authorization: `Bearer ${options.apiKey}`, "User-Agent": "plugin-madeonsol/1.10.0" };
+        }
+        else if (options.fetchFn) {
+            this.authMode = "x402";
+        }
+        else {
+            this.authMode = "none";
+            console.warn("\n[madeonsol] MadeOnSolClient constructed without apiKey or fetchFn — every request will fail.\n" +
+                "  → Get a free key (200 req/day, no card) at https://madeonsol.com/pricing\n" +
+                "  → Then: new MadeOnSolClient({ apiKey: process.env.MADEONSOL_API_KEY })\n");
+        }
+    }
+    captureRateLimit(res) {
+        this.lastRateLimit = {
+            limit: res.headers.get("X-RateLimit-Limit") ?? undefined,
+            remaining: res.headers.get("X-RateLimit-Remaining") ?? undefined,
+            reset: res.headers.get("X-RateLimit-Reset") ?? undefined,
+            requestId: res.headers.get("X-Request-Id") ?? undefined,
+        };
     }
     async query(path, params) {
-        const url = new URL(path, this.baseUrl);
+        const apiPath = this.authMode === "x402" || this.authMode === "none"
+            ? path
+            : path.replace("/api/x402/", "/api/v1/");
+        const url = new URL(apiPath, this.baseUrl);
         if (params) {
             for (const [k, v] of Object.entries(params)) {
                 if (v !== undefined)
                     url.searchParams.set(k, v);
             }
         }
-        const res = await this.fetchFn(url.toString(), { method: "GET" });
+        const res = this.authMode === "x402"
+            ? await this.fetchFn(url.toString(), { method: "GET" })
+            : await this.fetchFn(url.toString(), { method: "GET", headers: this.authHeaders });
+        this.captureRateLimit(res);
         if (res.status === 402) {
             const body = await res.json();
             return { error: `Payment required: ${JSON.stringify(body.accepts?.[0] || body)}`, status: 402 };
@@ -39,7 +74,307 @@ export class MadeOnSolClient {
     getKolLeaderboard(params) {
         return this.query("/api/x402/kol/leaderboard", params);
     }
+    /**
+     * Get deployer alerts. The `tier` filter (elite/good/moderate/rising/cold)
+     * is PRO/ULTRA only — BASIC callers passing it receive HTTP 403.
+     * Cursor-paginated via `before` (preferred over `offset` at scale).
+     */
     getDeployerAlerts(params) {
         return this.query("/api/x402/deployer-hunter/alerts", params);
+    }
+    getKolPairs(params) {
+        return this.query("/api/x402/kol/pairs", params);
+    }
+    getKolHotTokens(params) {
+        return this.query("/api/x402/kol/tokens/hot", params);
+    }
+    getKolTrendingTokens(params) {
+        return this.query("/api/x402/kol/tokens/trending", params);
+    }
+    getKolTokenEntryOrder(mint, params) {
+        return this.query(`/api/x402/kol/tokens/${encodeURIComponent(mint)}/entry-order`, params);
+    }
+    getKolCompare(wallets) {
+        return this.query("/api/x402/kol/compare", { wallets: wallets.join(",") });
+    }
+    getKolAlertsRecent(params) {
+        return this.query("/api/x402/kol/alerts/recent", params);
+    }
+    getKolPnl(wallet, params) {
+        const qs = params?.period ? `?period=${params.period}` : "";
+        return this.restRequest("GET", `/kol/${wallet}/pnl${qs}`);
+    }
+    getKolTiming(wallet, params) {
+        const qs = params?.period ? `?period=${params.period}` : "";
+        return this.restRequest("GET", `/kol/${wallet}/timing${qs}`);
+    }
+    getDeployerTrajectory(wallet) {
+        return this.restRequest("GET", `/deployer-hunter/${wallet}/trajectory`);
+    }
+    // ── REST helper (used by webhooks, streaming, alpha, copy-trade, wallet-tracker) ──
+    async restRequest(method, path, body) {
+        if (this.authMode !== "madeonsol") {
+            return { error: "MadeOnSol API key required for this endpoint. Get a free `msk_` key at https://madeonsol.com/pricing", status: 401 };
+        }
+        const res = await this.fetchFn(`${this.baseUrl}/api/v1${path}`, {
+            method,
+            headers: {
+                "Content-Type": "application/json",
+                ...this.authHeaders,
+            },
+            ...(body ? { body: JSON.stringify(body) } : {}),
+        });
+        this.captureRateLimit(res);
+        if (!res.ok) {
+            const text = await res.text().catch(() => "Unknown error");
+            return { error: text, status: res.status };
+        }
+        return { data: await res.json(), status: res.status };
+    }
+    // ── Webhook management (PRO/ULTRA) ──
+    createWebhook(params) {
+        return this.restRequest("POST", "/webhooks", params);
+    }
+    listWebhooks() {
+        return this.restRequest("GET", "/webhooks");
+    }
+    deleteWebhook(id) {
+        return this.restRequest("DELETE", `/webhooks/${id}`);
+    }
+    testWebhook(webhookId) {
+        return this.restRequest("POST", "/webhooks/test", { webhook_id: webhookId });
+    }
+    getStreamToken() {
+        return this.restRequest("POST", "/stream/token");
+    }
+    // ── Wallet Tracker ──
+    getWalletTrackerWatchlist() {
+        return this.restRequest("GET", "/wallet-tracker/watchlist");
+    }
+    addToWatchlist(walletAddress, label) {
+        return this.restRequest("POST", "/wallet-tracker/watchlist", { wallet_address: walletAddress, ...(label ? { label } : {}) });
+    }
+    removeFromWatchlist(walletAddress) {
+        return this.restRequest("DELETE", `/wallet-tracker/watchlist/${encodeURIComponent(walletAddress)}`);
+    }
+    getWalletTrackerTrades(params) {
+        const qs = new URLSearchParams();
+        if (params) {
+            for (const [k, v] of Object.entries(params)) {
+                if (v !== undefined)
+                    qs.set(k, v);
+            }
+        }
+        const query = qs.toString() ? `?${qs.toString()}` : "";
+        return this.restRequest("GET", `/wallet-tracker/trades${query}`);
+    }
+    // ── Universal wallet endpoints (PRO+, any wallet — not just curated KOLs) ──
+    getWalletStats(address) {
+        return this.restRequest("GET", `/wallet/${encodeURIComponent(address)}`);
+    }
+    getWalletPnl(address) {
+        return this.restRequest("GET", `/wallet/${encodeURIComponent(address)}/pnl`);
+    }
+    getWalletPositions(address) {
+        return this.restRequest("GET", `/wallet/${encodeURIComponent(address)}/positions`);
+    }
+    getWalletTrades(address, params) {
+        const qs = new URLSearchParams();
+        if (params?.limit !== undefined)
+            qs.set("limit", String(params.limit));
+        if (params?.cursor)
+            qs.set("cursor", params.cursor);
+        if (params?.action)
+            qs.set("action", params.action);
+        if (params?.token_mint)
+            qs.set("token_mint", params.token_mint);
+        if (params?.since !== undefined)
+            qs.set("since", String(params.since));
+        if (params?.until !== undefined)
+            qs.set("until", String(params.until));
+        const query = qs.toString() ? `?${qs.toString()}` : "";
+        return this.restRequest("GET", `/wallet/${encodeURIComponent(address)}/trades${query}`);
+    }
+    getWalletTrackerSummary(params) {
+        const qs = new URLSearchParams();
+        if (params?.period)
+            qs.set("period", params.period);
+        if (params?.wallet)
+            qs.set("wallet", params.wallet);
+        const query = qs.toString() ? `?${qs.toString()}` : "";
+        return this.restRequest("GET", `/wallet-tracker/summary${query}`);
+    }
+    // ── Alpha Wallet Intelligence ──
+    getAlphaLeaderboard(params) {
+        const qs = new URLSearchParams();
+        if (params)
+            for (const [k, v] of Object.entries(params))
+                if (v !== undefined)
+                    qs.set(k, v);
+        const query = qs.toString() ? `?${qs.toString()}` : "";
+        return this.restRequest("GET", `/alpha/leaderboard${query}`);
+    }
+    getAlphaWallet(wallet) {
+        return this.restRequest("GET", `/alpha/wallet/${encodeURIComponent(wallet)}`);
+    }
+    getAlphaLinked(wallet) {
+        return this.restRequest("GET", `/alpha/${encodeURIComponent(wallet)}/linked`);
+    }
+    // ── Token Quality ──
+    getTokenCapTable(mint) {
+        return this.restRequest("GET", `/tokens/${encodeURIComponent(mint)}/cap-table`);
+    }
+    getTokenBuyerQuality(mint) {
+        return this.restRequest("GET", `/tokens/${encodeURIComponent(mint)}/buyer-quality`);
+    }
+    /** Bulk buyer-quality scoring for up to 50 mints. Shares the single-mint 5-min LRU cache. */
+    getTokenBuyerQualityBatch(mints) {
+        return this.restRequest("POST", "/tokens/batch/buyer-quality", { mints });
+    }
+    // ── Token intelligence (/token/{mint}) ──
+    /** Comprehensive per-mint snapshot: price, MC, volume, deployer, KOL activity, age, blacklist. */
+    getToken(mint) {
+        return this.restRequest("GET", `/token/${encodeURIComponent(mint)}`);
+    }
+    /** Bulk lookup of up to 50 mints — same per-mint shape as getToken(). 10-20× cheaper than N sequential calls. */
+    getTokenBatch(mints) {
+        return this.restRequest("POST", "/token/batch", { mints });
+    }
+    // ── Copy-Trade Rules (PRO/ULTRA) ──
+    copyTradeList() {
+        return this.restRequest("GET", "/copy-trade/rules");
+    }
+    copyTradeCreate(params) {
+        return this.restRequest("POST", "/copy-trade/rules", params);
+    }
+    copyTradeGet(ruleId) {
+        return this.restRequest("GET", `/copy-trade/rules/${encodeURIComponent(ruleId)}`);
+    }
+    copyTradeUpdate(ruleId, updates) {
+        return this.restRequest("PATCH", `/copy-trade/rules/${encodeURIComponent(ruleId)}`, updates);
+    }
+    copyTradeDelete(ruleId) {
+        return this.restRequest("DELETE", `/copy-trade/rules/${encodeURIComponent(ruleId)}`);
+    }
+    // ── Coordination alerts (PRO/ULTRA, v1.1) ──
+    coordinationAlertsList() {
+        return this.restRequest("GET", "/kol/coordination/alerts");
+    }
+    coordinationAlertsCreate(params) {
+        return this.restRequest("POST", "/kol/coordination/alerts", params);
+    }
+    coordinationAlertsGet(ruleId) {
+        return this.restRequest("GET", `/kol/coordination/alerts/${encodeURIComponent(ruleId)}`);
+    }
+    coordinationAlertsUpdate(ruleId, updates) {
+        return this.restRequest("PATCH", `/kol/coordination/alerts/${encodeURIComponent(ruleId)}`, updates);
+    }
+    coordinationAlertsDelete(ruleId) {
+        return this.restRequest("DELETE", `/kol/coordination/alerts/${encodeURIComponent(ruleId)}`);
+    }
+    // ── First-touch signal ──
+    firstTouches(params) {
+        const qs = new URLSearchParams();
+        if (params)
+            for (const [k, v] of Object.entries(params))
+                if (v !== undefined)
+                    qs.set(k, String(v));
+        const query = qs.toString() ? `?${qs.toString()}` : "";
+        return this.restRequest("GET", `/kol/first-touches${query}`);
+    }
+    firstTouchSubscriptionsList() {
+        return this.restRequest("GET", "/kol/first-touches/subscriptions");
+    }
+    firstTouchSubscriptionsCreate(params) {
+        return this.restRequest("POST", "/kol/first-touches/subscriptions", params);
+    }
+    firstTouchSubscriptionsGet(id) {
+        return this.restRequest("GET", `/kol/first-touches/subscriptions/${encodeURIComponent(id)}`);
+    }
+    firstTouchSubscriptionsUpdate(id, updates) {
+        return this.restRequest("PATCH", `/kol/first-touches/subscriptions/${encodeURIComponent(id)}`, updates);
+    }
+    firstTouchSubscriptionsDelete(id) {
+        return this.restRequest("DELETE", `/kol/first-touches/subscriptions/${encodeURIComponent(id)}`);
+    }
+    // ── Account info ──
+    /** Get the authenticated caller's account, tier, and quota usage. */
+    getMe() {
+        return this.restRequest("GET", "/me");
+    }
+    // ── Token discovery / scanner ──
+    /**
+     * List tokens with filters (mc band, liquidity, momentum, DEX, age, etc.).
+     * Default `min_liq` is 2000 server-side. Returns up to ~50 tokens per call.
+     */
+    getTokensList(params) {
+        const qs = new URLSearchParams();
+        if (params) {
+            for (const [k, v] of Object.entries(params)) {
+                if (v !== undefined)
+                    qs.set(k, v);
+            }
+        }
+        const query = qs.toString() ? `?${qs.toString()}` : "";
+        return this.restRequest("GET", `/tokens${query}`);
+    }
+    copyTradeSignals(params) {
+        const qs = new URLSearchParams();
+        if (params)
+            for (const [k, v] of Object.entries(params))
+                if (v !== undefined)
+                    qs.set(k, v);
+        const query = qs.toString() ? `?${qs.toString()}` : "";
+        return this.restRequest("GET", `/copy-trade/signals${query}`);
+    }
+    // ── Price alerts (PRO/ULTRA, v1.9) ──
+    priceAlertsList() {
+        return this.restRequest("GET", "/price-alerts");
+    }
+    priceAlertsCreate(params) {
+        return this.restRequest("POST", "/price-alerts", params);
+    }
+    priceAlertsGet(id) {
+        return this.restRequest("GET", `/price-alerts/${id}`);
+    }
+    priceAlertsUpdate(id, updates) {
+        return this.restRequest("PATCH", `/price-alerts/${id}`, updates);
+    }
+    priceAlertsDelete(id) {
+        return this.restRequest("DELETE", `/price-alerts/${id}`);
+    }
+    priceAlertsEvents(params) {
+        const qs = new URLSearchParams();
+        if (params)
+            for (const [k, v] of Object.entries(params))
+                if (v !== undefined)
+                    qs.set(k, String(v));
+        const query = qs.toString() ? `?${qs.toString()}` : "";
+        return this.restRequest("GET", `/price-alerts/events${query}`);
+    }
+    // ── v1.9 new endpoints ──
+    scoutLeaderboard(params) {
+        const qs = new URLSearchParams();
+        if (params)
+            for (const [k, v] of Object.entries(params))
+                if (v !== undefined)
+                    qs.set(k, String(v));
+        const query = qs.toString() ? `?${qs.toString()}` : "";
+        return this.restRequest("GET", `/kol/scouts/leaderboard${query}`);
+    }
+    coordinationHistory(params) {
+        const qs = new URLSearchParams();
+        if (params)
+            for (const [k, v] of Object.entries(params))
+                if (v !== undefined)
+                    qs.set(k, String(v));
+        const query = qs.toString() ? `?${qs.toString()}` : "";
+        return this.restRequest("GET", `/kol/coordination/history${query}`);
+    }
+    kolConsensus(mint) {
+        return this.restRequest("GET", `/tokens/${encodeURIComponent(mint)}/kol-consensus`);
+    }
+    peakHistory(mint) {
+        return this.restRequest("GET", `/tokens/${encodeURIComponent(mint)}/peak-history`);
     }
 }

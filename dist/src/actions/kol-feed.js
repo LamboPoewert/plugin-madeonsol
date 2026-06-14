@@ -5,7 +5,7 @@ function getClient(runtime) {
 }
 export const kolFeedAction = {
     name: "GET_KOL_FEED",
-    description: "Get the real-time Solana KOL trade feed from MadeOnSol. Shows latest buys and sells from 1,000+ tracked KOL wallets with deployer enrichment.",
+    description: "Get the real-time Solana KOL trade feed from MadeOnSol. Shows latest buys and sells from 946 tracked KOL wallets with deployer enrichment.",
     similes: [
         "kol trades",
         "what are kols buying",
@@ -25,21 +25,12 @@ export const kolFeedAction = {
         const result = await client.getKolFeed({ limit: "10", ...(action ? { action } : {}) });
         if (result.error) {
             callback?.({ text: result.status === 402
-                    ? "Authentication required. Set MADEONSOL_API_KEY — free at https://madeonsol.com/pricing — or SVM_PRIVATE_KEY."
+                    ? "x402 payment required but no wallet configured. Set SVM_PRIVATE_KEY to enable automatic USDC payments."
                     : `Error: ${result.error}` });
             return undefined;
         }
         const data = result.data;
-        const fmtMc = (mc) => {
-            if (mc == null || !isFinite(mc) || mc <= 0)
-                return "";
-            if (mc >= 1e6)
-                return ` @ MC $${(mc / 1e6).toFixed(2)}M`;
-            if (mc >= 1e3)
-                return ` @ MC $${(mc / 1e3).toFixed(1)}K`;
-            return ` @ MC $${mc.toFixed(0)}`;
-        };
-        const lines = (data.trades || []).slice(0, 10).map((t) => `${t.kol_name || "Unknown"} ${t.action === "buy" ? "bought" : "sold"} ${t.token_symbol || "?"} for ${Number(t.sol_amount).toFixed(2)} SOL${fmtMc(t.market_cap_usd_at_trade)}`);
+        const lines = (data.trades || []).slice(0, 10).map((t) => `${t.kol_name || "Unknown"} ${t.action === "buy" ? "bought" : "sold"} ${t.token_symbol || "?"} for ${Number(t.sol_amount).toFixed(2)} SOL`);
         callback?.({
             text: `Latest KOL trades:\n${lines.join("\n")}`,
             content: data,

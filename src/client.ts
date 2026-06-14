@@ -41,7 +41,7 @@ export class MadeOnSolClient {
 
     if (options.apiKey) {
       this.authMode = "madeonsol";
-      this.authHeaders = { Authorization: `Bearer ${options.apiKey}`, "User-Agent": "plugin-madeonsol/1.9.0" };
+      this.authHeaders = { Authorization: `Bearer ${options.apiKey}`, "User-Agent": "plugin-madeonsol/1.10.0" };
     } else if (options.fetchFn) {
       this.authMode = "x402";
     } else {
@@ -450,6 +450,12 @@ export class MadeOnSolClient {
     max_age_min?: string;
     mc_change_1h_min_pct?: string;
     mc_change_1h_max_pct?: string;
+    /** v1.10 — minimum liquidity-to-MC ratio (0-1). */
+    min_liq_mc_ratio?: string;
+    /** v1.10 — maximum liquidity-to-MC ratio (0-1). */
+    max_liq_mc_ratio?: string;
+    /** v1.10 — filter by deployer tier: "elite" | "good" | "moderate" | "rising" | "cold" | "unranked". */
+    deployer_tier?: string;
     sort?: string;
     order?: string;
   }) {

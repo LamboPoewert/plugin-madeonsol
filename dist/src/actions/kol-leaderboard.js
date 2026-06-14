@@ -24,7 +24,7 @@ export const kolLeaderboardAction = {
         const result = await client.getKolLeaderboard({ period, limit: "10" });
         if (result.error) {
             callback?.({ text: result.status === 402
-                    ? "Authentication required. Set MADEONSOL_API_KEY — free at https://madeonsol.com/pricing — or SVM_PRIVATE_KEY."
+                    ? "x402 payment required but no wallet configured. Set SVM_PRIVATE_KEY to enable automatic USDC payments."
                     : `Error: ${result.error}` });
             return undefined;
         }

@@ -21,15 +21,10 @@ export const deployerAlertsAction = {
         const client = getClient(runtime);
         const text = (message.content?.text || "").toLowerCase();
         const limit = text.match(/\b(\d+)\s*(alert|token|launch)/)?.[1] || "10";
-        // Best-effort tier inference from the user's prompt — only sent to the API
-        // when the user explicitly mentioned a tier. The tier filter requires
-        // PRO/ULTRA on the caller's API key.
-        const tierMatch = text.match(/\b(elite|good|moderate|rising|cold)\b/);
-        const tier = tierMatch?.[1];
-        const result = await client.getDeployerAlerts(tier ? { limit, tier } : { limit });
+        const result = await client.getDeployerAlerts({ limit });
         if (result.error) {
             callback?.({ text: result.status === 402
-                    ? "Authentication required. Set MADEONSOL_API_KEY — free at https://madeonsol.com/pricing — or SVM_PRIVATE_KEY."
+                    ? "x402 payment required but no wallet configured. Set SVM_PRIVATE_KEY to enable automatic USDC payments."
                     : `Error: ${result.error}` });
             return undefined;
         }
