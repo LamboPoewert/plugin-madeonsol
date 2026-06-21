@@ -11,6 +11,10 @@ ElizaOS plugin for [MadeOnSol](https://madeonsol.com) — Solana KOL trading int
 
 > Real-time Solana trading intelligence: track 1,069 KOL wallets with <3s latency, score 23,000+ Pump.fun deployers, surface deshred deploy signals ~500ms before on-chain confirmation, detect multi-KOL coordination, and stream every DEX trade. Free tier: 200 requests/day at [madeonsol.com/pricing](https://madeonsol.com/pricing) — no credit card required.
 
+> **New in 1.13.0** — **Token net flow.** New action `GET_TOKEN_FLOW` + `client.getTokenFlow(mint, { window })` — net buy/sell flow over a rolling window (`1h` default, or `24h`): `unique_wallets`, `unique_buyers`, `unique_sellers`, `buy_count`, `sell_count`, `total_trades`, `buy_sol`, `sell_sol`, `net_sol`, `trades_per_wallet`. PRO+. Deployer alerts now also surface `deployer_sol_balance` — the deployer wallet's SOL balance at alert time (`null` for historical rows).
+>
+> **New in 1.12.0** — **Token OHLCV candles.** New action `GET_TOKEN_CANDLES` + `client.getTokenCandles(mint, { tf, limit, from, to })` — historical price candles (1m/5m/15m/1h/4h/1d) aggregated from the on-chain trade firehose. Each candle has `t/open/high/low/close/volume_usd/trades/market_cap_usd`. PRO returns OHLCV for the last 30 days; ULTRA adds buy/sell volume + count splits, net flow, MEV volume, open/close liquidity, high/low MC, and full history. PRO/ULTRA only.
+>
 > **New in 1.11.0** — **Token risk score.** New action `GET_TOKEN_RISK` + `client.getTokenRisk(mint)` — a transparent 0–100 rug-risk/safety score (higher = riskier) with a `band` (safe/caution/danger), an explainable `factors[]` array, and the raw `inputs` (mint/freeze authority, liquidity, liq-to-MC ratio, transfer fee, launch cohort, deployer bond rate, KOL signal, blacklist). PRO/ULTRA only.
 >
 > **New in 1.10.0** — `client.getTokensList()` gains three new filter params: `min_liq_mc_ratio`, `max_liq_mc_ratio`, and `deployer_tier`. Response items now include `liquidity_to_mc_ratio` and `deployer_tier`. KOL leaderboard entries now include `median_hold_minutes_30d` and `percentile_early_entry_30d`. Token endpoints now return `liquidity_to_mc_ratio`, `launch_cohort_sol`, and `launch_cohort_size`.
@@ -65,6 +69,8 @@ Gives your ElizaOS agent access to MadeOnSol's Solana intelligence API.
 | `WALLET_POSITIONS` | **New 1.8** · Open positions with live unrealized SOL from market-cap tracker (PRO+) |
 | `WALLET_TRADES` | **New 1.8** · Recent trades for any wallet, filtered by action (PRO+) |
 | `GET_TOKEN_RISK` | **New 1.11** · Transparent 0–100 rug-risk/safety score with band + explainable factors (PRO+) |
+| `GET_TOKEN_CANDLES` | **New 1.12** · Historical OHLCV candles (1m–1d). PRO=OHLCV 30d; ULTRA=+net flow, liquidity delta, full history (PRO+) |
+| `GET_TOKEN_FLOW` | **New 1.13** · Net buy/sell flow over a 1h/24h window — unique wallets/buyers/sellers, buy/sell counts, buy/sell/net SOL, trades-per-wallet (PRO+) |
 
 ## Install
 
@@ -178,6 +184,22 @@ Also available: `priceAlertsList()`, `priceAlertsGet(id)`, `priceAlertsUpdate(id
 | `KOL_CONSENSUS` | Tokens with the strongest KOL agreement signal (PRO+) |
 | `PEAK_HISTORY` | Historical peak-density windows for a token (PRO+) |
 | `COORDINATION_HISTORY` | Global coordination event log (PRO+) |
+
+### Token net flow *(new in 1.13)*
+
+`GET_TOKEN_FLOW` (or `client.getTokenFlow(mint, { window })`) returns net buy/sell flow over a rolling `1h` (default) or `24h` window. PRO+.
+
+```ts
+import { MadeOnSolClient } from "@madeonsol/plugin-madeonsol";
+const client = new MadeOnSolClient({ apiKey: process.env.MADEONSOL_API_KEY });
+
+const { data } = await client.getTokenFlow("7xKXtg2CW87d97TXJSDpbD5jBkheTqA83TZRuJosgAsU", { window: "24h" });
+// { mint, window, from, unique_wallets, unique_buyers, unique_sellers,
+//   buy_count, sell_count, total_trades, buy_sol, sell_sol, net_sol, trades_per_wallet }
+console.log(`Net ${data.net_sol} SOL across ${data.unique_wallets} wallets`);
+```
+
+> Deployer alerts (`GET_DEPLOYER_ALERTS` / `client.getDeployerAlerts()`) now include `deployer_sol_balance` — the deployer wallet's SOL balance at alert time (`null` for historical rows).
 
 ### Wallet derived stats *(new in 1.9)*
 

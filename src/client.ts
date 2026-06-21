@@ -25,6 +25,23 @@ export interface RateLimitInfo {
   requestId?: string;
 }
 
+/** Net buy/sell flow for a token over a rolling window. Returned by `getTokenFlow`. */
+export interface TokenFlow {
+  mint: string;
+  window: "1h" | "24h";
+  from: number;
+  unique_wallets: number;
+  unique_buyers: number;
+  unique_sellers: number;
+  buy_count: number;
+  sell_count: number;
+  total_trades: number;
+  buy_sol: number;
+  sell_sol: number;
+  net_sol: number;
+  trades_per_wallet: number;
+}
+
 export class MadeOnSolClient {
   private baseUrl: string;
   private fetchFn: typeof fetch;
@@ -298,6 +315,27 @@ export class MadeOnSolClient {
   /** Transparent 0–100 rug-risk/safety score (higher = riskier) with band, explainable factors, and raw inputs. PRO+. */
   getTokenRisk(mint: string) {
     return this.restRequest("GET", `/tokens/${encodeURIComponent(mint)}/risk`);
+  }
+
+  /** Historical OHLCV candles (1m/5m/15m/1h/4h/1d) aggregated from the trade firehose. PRO=OHLCV 30d; ULTRA=+net flow, liquidity delta, full history. PRO+. */
+  getTokenCandles(mint: string, params?: { tf?: string; limit?: number; from?: string; to?: string }) {
+    const qs = new URLSearchParams();
+    if (params?.tf) qs.set("tf", params.tf);
+    if (params?.limit !== undefined) qs.set("limit", String(params.limit));
+    if (params?.from) qs.set("from", params.from);
+    if (params?.to) qs.set("to", params.to);
+    const query = qs.toString() ? `?${qs.toString()}` : "";
+    return this.restRequest("GET", `/tokens/${encodeURIComponent(mint)}/candles${query}`);
+  }
+
+  /**
+   * Net buy/sell flow for a token over a rolling window (1h or 24h). Returns unique
+   * wallet/buyer/seller counts, buy/sell trade counts, buy/sell/net SOL, and trades-per-wallet.
+   * Default window is "1h". PRO+.
+   */
+  getTokenFlow(mint: string, params?: { window?: "1h" | "24h" }) {
+    const qs = params?.window ? `?window=${params.window}` : "";
+    return this.restRequest<TokenFlow>("GET", `/tokens/${encodeURIComponent(mint)}/flow${qs}`);
   }
 
   /** Bulk buyer-quality scoring for up to 50 mints. Shares the single-mint 5-min LRU cache. */
