@@ -278,7 +278,7 @@ export class MadeOnSolClient {
   }
 
   getAlphaWallet(wallet: string) {
-    return this.restRequest("GET", `/alpha/wallet/${encodeURIComponent(wallet)}`);
+    return this.restRequest("GET", `/alpha/${encodeURIComponent(wallet)}`);
   }
 
   getAlphaLinked(wallet: string) {
@@ -320,30 +320,36 @@ export class MadeOnSolClient {
   // ── Copy-Trade Rules (PRO/ULTRA) ──
 
   copyTradeList() {
-    return this.restRequest("GET", "/copy-trade/rules");
+    return this.restRequest("GET", "/copytrade/subscriptions");
   }
 
   copyTradeCreate(params: {
-    name: string;
-    source_wallet: string;
-    is_active?: boolean;
+    /** 1-50 wallets to copy trades from. */
+    source_wallets: string[];
+    /** Required. Fixed SOL amount, proportional multiplier, or percent of source — per sizing_mode. */
+    sizing_amount: number;
+    name?: string;
+    min_trade_sol?: number;
+    only_action?: "buy" | "sell" | "both";
+    sizing_mode?: "fixed" | "proportional" | "percent_source";
+    delivery_mode?: "webhook" | "websocket" | "both";
     webhook_url?: string;
-    delivery?: "webhook" | "websocket" | "both";
-    filters?: Record<string, unknown>;
+    min_mc_usd?: number | null;
+    max_mc_usd?: number | null;
   }) {
-    return this.restRequest("POST", "/copy-trade/rules", params);
+    return this.restRequest("POST", "/copytrade/subscriptions", params);
   }
 
   copyTradeGet(ruleId: string) {
-    return this.restRequest("GET", `/copy-trade/rules/${encodeURIComponent(ruleId)}`);
+    return this.restRequest("GET", `/copytrade/subscriptions/${encodeURIComponent(ruleId)}`);
   }
 
   copyTradeUpdate(ruleId: string, updates: Record<string, unknown>) {
-    return this.restRequest("PATCH", `/copy-trade/rules/${encodeURIComponent(ruleId)}`, updates);
+    return this.restRequest("PATCH", `/copytrade/subscriptions/${encodeURIComponent(ruleId)}`, updates);
   }
 
   copyTradeDelete(ruleId: string) {
-    return this.restRequest("DELETE", `/copy-trade/rules/${encodeURIComponent(ruleId)}`);
+    return this.restRequest("DELETE", `/copytrade/subscriptions/${encodeURIComponent(ruleId)}`);
   }
 
   // ── Coordination alerts (PRO/ULTRA, v1.1) ──
@@ -478,7 +484,7 @@ export class MadeOnSolClient {
     const qs = new URLSearchParams();
     if (params) for (const [k, v] of Object.entries(params)) if (v !== undefined) qs.set(k, v);
     const query = qs.toString() ? `?${qs.toString()}` : "";
-    return this.restRequest("GET", `/copy-trade/signals${query}`);
+    return this.restRequest("GET", `/copytrade/signals${query}`);
   }
 
   // ── Price alerts (PRO/ULTRA, v1.9) ──
